@@ -8,8 +8,6 @@ venv/*
 __pycache__/
 
 mosaicos/
-pesos/
 mosaicos/*
-pesos/*
-boxes/*
+boxes/predictions/*
 
