@@ -1,0 +1,12 @@
+{
+    "input_tiff": "mosaicos/19_dic_2024_bajito_mask_test.tif",
+    "output_dir": "datasets/19_dic_2024_bajito_mask_test",
+    "bboxes_path": "boxes/grount_truth/19_dic_1cm_pedazo_all.csv",
+    "tile_width_cm": 800,
+    "tile_height_cm": 800,
+    "output_tile_width": 512,
+    "output_tile_height": 512,
+    "overlap_percentage": 0.20,
+    "accepted_labels" : [1],
+    "blank_threshold" : 0.85
+}

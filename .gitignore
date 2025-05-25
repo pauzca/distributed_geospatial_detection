@@ -1,0 +1,15 @@
+datasets/*
+**/predictions/
+**/predictions/*
+runs/*
+runs/
+venv/
+venv/*
+__pycache__/
+
+mosaicos/
+pesos/
+mosaicos/*
+pesos/*
+boxes/*
+
