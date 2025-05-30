@@ -1,13 +1,13 @@
 # 🛰️ Proyecto de Detección Geoespacial de Frailejones  
-**Inferencia distribuida con PySpark + YOLOv5 + Spark YARN**
+**Inferencia distribuida con PySpark + YOLOv11 + Spark YARN**
 
-Este proyecto permite detectar frailejones en imágenes satelitales (mosaicos `.tif`), divididas en tiles, usando modelos de visión por computador (YOLOv5 o RTDETR), de forma distribuida usando PySpark, tanto localmente como en un clúster Hadoop.
+Este proyecto permite detectar frailejones en imágenes satelitales (mosaicos `.tif`), divididas en tiles, usando modelos de visión por computador de forma distribuida usando PySpark, tanto localmente como en un clúster Hadoop.
 
 ---
 
 ## 📁 Estructura del Proyecto
-
-ADGE_GH_FINAL/
+```
+ADGE_GH_FINAL/ Tengo que actuailzar esto, ya que es con el PC del clúster
 ├── datasets/
 │ └── 19_dic_2024_bajito_mask_test/
 │ ├── dataset/images/test/ # Tiles PNG (512x512)
@@ -29,7 +29,7 @@ ADGE_GH_FINAL/
 │       └── run_yarn.sh # Ejecución en Hadoop YARN
 │    └── requirements.txt # Requisitos Python (excepto GDAL)
 |    └── README.md
-
+```
 
 ---
 
@@ -37,6 +37,7 @@ ADGE_GH_FINAL/
 
 
 # 1. Crear y activar entorno virtual
+
 ```bash
 python3 -m venv spark_env
 source spark_env/bin/activate
@@ -65,7 +66,6 @@ bash spark_scripts/run_local.sh
 ```
 
 Esto ejecuta el proceso en paralelo en tu máquina local usando todos los núcleos disponibles.
-
 🔹 Opción 2: En clúster Hadoop (YARN)
 ```bash
 bash spark_scripts/run_yarn.sh
