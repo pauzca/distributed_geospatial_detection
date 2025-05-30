@@ -11,3 +11,6 @@ mosaicos/
 mosaicos/*
 boxes/predictions/*
 
+datasets/
+spark_scripts/data/predictions.csv
+

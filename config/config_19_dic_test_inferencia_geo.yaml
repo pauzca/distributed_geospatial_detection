@@ -1,6 +1,0 @@
-# config.yaml
-
-weights: "pesos/yolo_best_fine_tune_800.pt"
-model: "YOLO"
-folder: "datasets/19_dic_2024_bajito_mask_test"
-output: "boxes/predictions/yolov11_19_dic_1cm_pedazo_all_predictions.csv"
