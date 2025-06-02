@@ -3,6 +3,8 @@
 
 Este proyecto permite detectar frailejones en imágenes satelitales (mosaicos `.tif`), divididas en tiles, usando modelos de visión por computador de forma distribuida usando PySpark, tanto localmente como en un clúster Hadoop.
 
+Aquí es posible ver más información sobre los datos: https://colab.research.google.com/drive/1Tf5RDTGdcj-VcZLKzN4YK7w2fZLf65x_?usp=sharing
+
 ---
 
 ## 📁 Estructura del Proyecto
