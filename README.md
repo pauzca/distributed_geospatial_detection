@@ -16,8 +16,8 @@ ADGE_GH_FINAL/
 │      └── tile_metadata.json # Metadatos geoespaciales
 │   └── spark_scripts/
 │       ├── data/
-│       │ ├── input_images.txt # Lista de tiles a procesar
-│       │ ├── input_images copy.txt # que corre en el hadoop de la u
+│       │ ├── input_images.txt # Lista que corre dentro del hadoop de la u
+│       │ ├── input_images copy.txt # Lista de tiles a procesar *fuera* del hadoop de la u
 │       │ └── generate_input_images_txt.py # Script que genera input_images.txt
 │       ├── models/
 │       │ └── yolo_best_fine_tune_800.pt # Pesos del modelo YOLOv5
@@ -64,7 +64,9 @@ python spark_scripts/data/generate_input_images_txt.py
 ```
 
 🚀 Ejecutar el proyecto
+
 🔹 Opción 1: Local (pruebas en PC) desde la ruta `ADGE_GH_FINAL\distributed_geospatial_detection`
+
 ```bash
 bash spark_scripts/run_local.sh
 ```
@@ -73,6 +75,7 @@ Esto ejecuta el proceso en paralelo en tu máquina local usando todos los núcle
 
 
 🔹 Opción 2: En clúster Hadoop (YARN)
+
 ```bash
 bash spark_scripts/run_yarn.sh
 ```
