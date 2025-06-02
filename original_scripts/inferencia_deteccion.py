@@ -104,13 +104,13 @@ def main(config):
     bounding_boxes = pd.read_csv(output_file)
     # run non maximum suppresion
     s = time.time()
-    #bounding_boxes_t = detectionGeo.tiled_nms(bounding_boxes)
+    bounding_boxes_t = detectionGeo.tiled_nms(bounding_boxes)
     e = time.time()
     print("NMS time elapsed: ", e-s)
 
     # save boxes with non maximum suppresion
     save_path = output_file.replace(".csv", "_truncated.csv")
-    #bounding_boxes_t.to_csv(save_path, index=False)
+    bounding_boxes_t.to_csv(save_path, index=False)
 
     bounding_boxes_t = pd.read_csv(save_path)
     bounding_boxes_gt = pd.read_csv(ground_truth_file)
