@@ -9,6 +9,8 @@ import argparse
 import yaml
 import os
 import time
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
 
 
 """
@@ -18,7 +20,7 @@ Las configuraciones deberian estar en un archivo .yaml que contenga:
 weights: ruta a pesos del modelo
 modelo: nombre del modelo "YOLO" o "RTDETR"
 folder: ruta donde se encuentra el dataset de detección
-output: ruta donde se guardara un archivo csv con las predicciones georrefrenciadas al mosaico
+output: ruta donde se guardaran los archivos de salida
 """
 
 def main(config):
@@ -26,13 +28,15 @@ def main(config):
     print(f"Model weights: {config['weights']}")
     print(f"Model name: {config['model']}")
     print(f"Files directory: {config['folder']}")
-    print(f"Output file: {config['output']}")
+    print(f"Output folder: {config['output_folder']}")
 
     model_weights = config['weights']
     test_directory = config['folder'] + "/dataset/images"
     metadata_file = config['folder'] + "/tile_metadata.json"
-    output_file = config['output']
+    output_file = config['output_folder'] + "/yolov11_19_dic_1cm_pedazo_all_predictions.csv"
     model_name = config['model']
+
+    ground_truth_file = config['folder'] + "/ground_truth.csv"
 
     detectionGeo = DetectionGeospatial(metadata_file)
 
@@ -100,14 +104,49 @@ def main(config):
     bounding_boxes = pd.read_csv(output_file)
     # run non maximum suppresion
     s = time.time()
-    bounding_boxes_t = detectionGeo.tiled_nms(bounding_boxes)
+    #bounding_boxes_t = detectionGeo.tiled_nms(bounding_boxes)
     e = time.time()
     print("NMS time elapsed: ", e-s)
 
     # save boxes with non maximum suppresion
     save_path = output_file.replace(".csv", "_truncated.csv")
-    bounding_boxes_t.to_csv(save_path, index=False)
+    #bounding_boxes_t.to_csv(save_path, index=False)
 
+    bounding_boxes_t = pd.read_csv(save_path)
+    bounding_boxes_gt = pd.read_csv(ground_truth_file)
+    # computar metricas
+    gt_labels, pred_labels = detectionGeo.tiled_compute_labels(bounding_boxes_gt, bounding_boxes_t)
+
+    # save a confusion matrix
+    # Compute the confusion matrix
+    cm = confusion_matrix(gt_labels, pred_labels, labels=[1, 0])
+
+    # Optional: print raw matrix values
+    print("Confusion Matrix:")
+    print(cm)
+
+    # Display and save the confusion matrix as an image
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["Frailejon", "Background"])
+    disp.plot(cmap=plt.cm.Blues)
+
+    # Save the plot
+    plt.title("Detection Confusion Matrix")
+    cf_file = output_file.replace(".csv", "confusion_matrix.png")
+    plt.savefig(cf_file, bbox_inches="tight")
+    plt.close()
+
+    presicion, recall, f1_score = detectionGeo.compute_metrics(gt_labels, pred_labels)
+    print(f"Precision: {presicion}, Recall: {recall}, F1 Score: {f1_score}")
+
+    # save metrics
+    metrics_file = output_file.replace(".csv", "_metrics.json")
+    metrics = {
+        "precision": presicion,
+        "recall": recall,
+        "f1_score": f1_score
+    }
+    with open(metrics_file, 'w') as f:
+        json.dump(metrics, f, indent=4)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

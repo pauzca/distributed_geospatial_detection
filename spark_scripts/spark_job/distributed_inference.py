@@ -3,7 +3,9 @@ from pyspark import SparkFiles
 from ultralytics import YOLO
 from spark_job.utils import load_image, load_tile_metadata
 from spark_job.Box import Box
+from spark_job.DetectionGeospatial import DetectionGeospatial
 import os
+import time
 
 os.environ["YOLO_CONFIG_DIR"] = "/tmp"
 
@@ -44,14 +46,40 @@ def predict_partition(image_paths):
                 resized.confidence
             ))
 
-
     return iter(results)
+
+
 
 if __name__ == "__main__":
     spark = SparkSession.builder.appName("DistributedDetection").getOrCreate()
     sc = spark.sparkContext
 
-    rdd = sc.textFile("spark_scripts/data/input_images.txt")
+    rdd = sc.textFile("spark_scripts/data/input_images copy.txt")
+    # mapper, inferencia de cajas delimitadoras
+    print("Doing inference...")
+    s = time.time()
     detections = rdd.mapPartitions(predict_partition)
-    df = detections.toDF(["tile", "label", "xmin", "ymin", "xmax", "ymax", "confidence"])
-    df.coalesce(1).write.csv("spark_scripts/data/predictions.csv", header=True, mode="overwrite")
+    e = time.time()
+    print("Inference time elapsed: ", e-s)
+    
+    # reduce guardar todo en un archivo csv
+    output_file = "spark_scripts/data/predictions.csv"
+    df = detections.toDF(["tile", "id", "xmin", "ymin", "xmax", "ymax", "confidence"])
+    df.coalesce(1).write.csv(output_file, header=True, mode="overwrite")
+
+    # computar NMS
+    detectionGeo = DetectionGeospatial(tile_metadata)
+    print(df.toPandas().head())
+    print("Computing NMS...")
+
+    s = time.time()
+    bounding_boxes_t = detectionGeo.tiled_nms(df.toPandas())
+    e = time.time()
+
+    save_path = output_file.replace(".csv", "_truncated.csv")
+    bounding_boxes_t.to_csv(save_path, index=False)
+
+    print("NMS time elapsed: ", e-s)
+
+
+    

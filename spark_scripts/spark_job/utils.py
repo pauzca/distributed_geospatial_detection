@@ -14,3 +14,5 @@ def load_image(path):
 def load_tile_metadata(json_path = 'spark_scripts/data/tile_metadata.json'):
     with open(json_path) as f:
         return json.load(f)
+
+

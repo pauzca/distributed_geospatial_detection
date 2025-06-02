@@ -13,10 +13,7 @@ class DetectionGeospatial:
     def __init__(self):
         pass
 
-    def __init__(self, metadata_file):
-        with open(metadata_file, 'r') as f:
-            metadata = json.load(f)
-
+    def __init__(self, metadata):
         self.tiles_geo = pd.DataFrame(metadata["tiles"])
 
         self.geo_mosaic = metadata["mosaic"]
@@ -210,147 +207,39 @@ class DetectionGeospatial:
         return bounding_boxes
 
 
-    def compute_labels_fast(self, gt_df, pred_df, iou_threshold=0.5, conf_threshold=0.0):
+
+    def compute_labels(self, gt_df, pred_df, iou_threshold=0.5, conf_threshold=0.0):
         filtered_preds = pred_df[pred_df['confidence'] >= conf_threshold]
         predictions = filtered_preds.sort_values(by='confidence', ascending=False)
-
-        gt_labels = []
-        pred_labels = []
+    
 
         matched_gt = set()
-        
-        for i, pred in pred_df.iterrows():
+        pred_labels = []
+        gt_labels = []
+
+        for _, pred_box in predictions.iterrows():
             match_found = False
-            for j, gt in gt_df.iterrows():
-                if j in matched_gt:
+            for gt_idx, gt_box in gt_df.iterrows():
+                if gt_idx in matched_gt:
                     continue
-                iou = self.calculate_iou(pred, gt)
+                iou = self.calculate_iou(pred_box, gt_box)
                 if iou >= iou_threshold:
-                    pred_labels.append(1)  # TP
-                    gt_labels.append(1)
-                    matched_gt.add(j)
+                    matched_gt.add(gt_idx)
+                    pred_labels.append(1)  # Prediction is a TP
+                    gt_labels.append(1)    # Corresponds to real object
                     match_found = True
                     break
             if not match_found:
-                pred_labels.append(1)  # FP
-                gt_labels.append(0)
+                pred_labels.append(1)  # Prediction exists
+                gt_labels.append(0)    # But no object matched = FP
 
-        # Add FN for each unmatched ground truth
+        # Now add FN: GTs that were never matched
         num_fn = len(gt_df) - len(matched_gt)
-        pred_labels.extend([0] * num_fn)  # No prediction made
-        gt_labels.extend([1] * num_fn)    # Ground truth object exists
+        pred_labels.extend([0] * num_fn)  # These "phantom predictions" never happened
+        gt_labels.extend([1] * num_fn)    # They are real GTs that were missed
 
         return gt_labels, pred_labels
 
-    
-
-    # obtener TP y FP por partes
-    def tiled_compute_labels(self, gt, preds, tile_width_cm = 2000, tile_height_cm = 2000, overlap_percentage = 0.20):
-        """
-        Compute the metric for the given ground truth and predictions.
-        """
-        overlap_pixels_width = int(tile_width_cm * overlap_percentage)
-        overlap_pixels_height = int(tile_height_cm * overlap_percentage)
-
-        x_stride = tile_width_cm - overlap_pixels_width
-        y_stride = tile_height_cm - overlap_pixels_height
-
-
-        # Calculate tile size in pixels
-        tile_width_px, tile_height_px = self.calculate_tile_size_px(tile_width_cm, tile_height_cm)
-
-        # Calculate the number of tiles in the image
-        num_tiles_x = int(self.image_width / x_stride)
-        num_tiles_y = int(self.image_height / y_stride)
-
-        print("Number of tiles for metric division: ", num_tiles_x * num_tiles_y)
-
-        # Create a list of thresholds
-        thresholds = np.linspace(0.0, 1, 50)
-        ious = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
-
-
-        GT_LABELS = []
-        PRED_LABELS = []
-
-        gt_index_check = []
-        pred_index_check = []
-
-        count = 0
-        for x_offset in range(0, self.image_width, x_stride):
-            for y_offset in range(0, self.image_height, y_stride):
-                count += 1
-                print("tile ", count)
-                w = min(tile_width_cm, self.image_width - x_offset)
-                h = min(tile_height_cm, self.image_height - y_offset)
-
-                # Calculate the geospatial coordinates of the tile
-                x_min_tile = self.geotransform[0] + x_offset * self.geotransform[1]
-                y_min_tile = self.geotransform[3] + y_offset * self.geotransform[5]
-                x_max_tile = x_min_tile + w * self.geotransform[1]
-                y_max_tile = y_min_tile + h * self.geotransform[5]
-            
-
-                index_gt_in_area = []
-                index_pred_in_area = []
-
-                # look for bounding boxes within the tile
-                for index, row in gt.iterrows():
-                    label  = int(row["id"])
-                    x_min_bbox = row["xmin"]
-                    x_max_bbox = row["xmax"]
-                    y_min_bbox = row["ymax"]
-                    y_max_bbox = row["ymin"]
-
-                    tile_coords = (x_min_tile, y_max_tile, x_max_tile, y_min_tile)
-                    bbox_coords = (x_min_bbox, y_min_bbox, x_max_bbox, y_max_bbox)
-
-                    # Check if the bbox is inside the tile and if it is the label we want
-                    if self.is_bbox_in_tile(tile_coords, bbox_coords, min_area_ratio=1) and index not in gt_index_check:
-                        index_gt_in_area.append(index)
-
-                for index, row in preds.iterrows():
-                    label  = int(row["id"])
-                    x_min_bbox = row["xmin"]
-                    x_max_bbox = row["xmax"]
-                    y_min_bbox = row["ymax"]
-                    y_max_bbox = row["ymin"]
-
-                    tile_coords = (x_min_tile, y_max_tile, x_max_tile, y_min_tile)
-                    bbox_coords = (x_min_bbox, y_min_bbox, x_max_bbox, y_max_bbox)
-
-                    # Check if the bbox is inside the tile and if it is the label we want
-                    if self.is_bbox_in_tile(tile_coords, bbox_coords, min_area_ratio=1) and index not in pred_index_check:
-                        index_pred_in_area.append(index)
-                
-                gt_index_check.extend(index_gt_in_area)
-                pred_index_check.extend(index_pred_in_area)
-
-                # now compute the gt labels of bboxes in the area
-                gt_in_area = gt.iloc[index_gt_in_area]
-                pred_in_area = preds.iloc[index_pred_in_area]
-
-                print("computing labels")
-                gt_labels, pred_labels = self.compute_labels_fast(gt_in_area, pred_in_area, iou_threshold = 0.5, conf_threshold=0.5)
-                GT_LABELS.extend(gt_labels)
-                PRED_LABELS.extend(pred_labels)
-
-        return GT_LABELS, PRED_LABELS
-    
-
-    def compute_metrics(self, gt_labels, pred_labels):
-        """
-        Compute precision, recall, and F1 score.
-        """
-        tp = sum(1 for gt, pred in zip(gt_labels, pred_labels) if gt == 1 and pred == 1)
-        fp = sum(1 for gt, pred in zip(gt_labels, pred_labels) if gt == 0 and pred == 1)
-        fn = sum(1 for gt, pred in zip(gt_labels, pred_labels) if gt == 1 and pred == 0)
-
-        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-        f1_score = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
-
-        return precision, recall, f1_score
 
 
     def calculate_tile_size_px(self, tile_width_cm,tile_height_cm):
@@ -366,7 +255,4 @@ class DetectionGeospatial:
         pixel_size_y_cm = abs(self.geotransform[5]) * 111320 * 100
 
         return pixel_size_x_cm, pixel_size_y_cm
-
-
-
 
