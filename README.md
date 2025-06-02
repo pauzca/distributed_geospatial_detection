@@ -7,18 +7,17 @@ Este proyecto permite detectar frailejones en imágenes satelitales (mosaicos `.
 
 ## 📁 Estructura del Proyecto
 ```
-ADGE_GH_FINAL/ Tengo que actuailzar esto, ya que es con el PC del clúster
-├── datasets/
-│ └── 19_dic_2024_bajito_mask_test/
-│ ├── dataset/images/test/ # Tiles PNG (512x512)
-│ └── tile_metadata.json # Metadatos geoespaciales
-├── spark_env/ # Entorno virtual con dependencias instaladas
-├── spark_env.tar.gz # Entorno comprimido para usar con YARN
+ADGE_GH_FINAL/
 ├── distributed_geospatial_detection/ 
 │   └── original_scripts # Código base original
+│   └── datasets/ # tiles del mosaico
+│      └── 19_dic_2024_bajito_mask_test/
+│      ├── dataset/images/test/ # Tiles PNG (512x512)
+│      └── tile_metadata.json # Metadatos geoespaciales
 │   └── spark_scripts/
 │       ├── data/
 │       │ ├── input_images.txt # Lista de tiles a procesar
+│       │ ├── input_images copy.txt # que corre en el hadoop de la u
 │       │ └── generate_input_images_txt.py # Script que genera input_images.txt
 │       ├── models/
 │       │ └── yolo_best_fine_tune_800.pt # Pesos del modelo YOLOv5
@@ -29,6 +28,9 @@ ADGE_GH_FINAL/ Tengo que actuailzar esto, ya que es con el PC del clúster
 │       └── run_yarn.sh # Ejecución en Hadoop YARN
 │    └── requirements.txt # Requisitos Python (excepto GDAL)
 |    └── README.md
+├── mosaicos
+├── env/ # Entorno virtual con dependencias instaladas
+├── env.tar.gz # Entorno comprimido para usar con YARN
 ```
 
 ---
@@ -38,14 +40,16 @@ ADGE_GH_FINAL/ Tengo que actuailzar esto, ya que es con el PC del clúster
 
 # 1. Crear y activar entorno virtual
 
+⚠ Este proyecto funciona con python 3.10 ⚠
+
 ```bash
-python3 -m venv spark_env
-source spark_env/bin/activate
+python3.10 -m venv env
+source env/bin/activate
 ```
 
 # 2. Instalar dependencias
 ```bash
-pip install -r requirements.txt
+pip install -r requirements2.txt
 ```
 
 # 3. Comprimir el entorno para usar con Spark YARN
@@ -54,18 +58,20 @@ deactivate
 tar -czf spark_env.tar.gz spark_env
 ```
 
-🧾 Generar lista de imágenes a procesar
+🧾 Generar lista de los tiles a procesar
 ```bash
 python spark_scripts/data/generate_input_images_txt.py
 ```
 
 🚀 Ejecutar el proyecto
-🔹 Opción 1: Local (pruebas en PC)
+🔹 Opción 1: Local (pruebas en PC) desde la ruta `ADGE_GH_FINAL\distributed_geospatial_detection`
 ```bash
 bash spark_scripts/run_local.sh
 ```
 
 Esto ejecuta el proceso en paralelo en tu máquina local usando todos los núcleos disponibles.
+
+
 🔹 Opción 2: En clúster Hadoop (YARN)
 ```bash
 bash spark_scripts/run_yarn.sh
@@ -73,10 +79,7 @@ bash spark_scripts/run_yarn.sh
 
 Esto ejecuta el proceso en modo distribuido entre los nodos del clúster usando YARN y el entorno empaquetado.
 
-📦 Salida esperada
-Se generará una carpeta tipo:
-
+Las predicciones deberían ser visibles en el hdfs
 ```bash
-spark_scripts/data/predictions.csv/
-├── part-00000...
+hdfs dfs -ls /user/hadoop/spark_scripts/data
 ```
