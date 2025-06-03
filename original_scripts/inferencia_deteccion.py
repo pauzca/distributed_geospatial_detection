@@ -40,7 +40,8 @@ def main(config):
 
     detectionGeo = DetectionGeospatial(metadata_file)
 
-    # add area 
+    times = []  # Lista para almacenar los tiempos
+
 
     # load the model 
     if model_name == "YOLO":
@@ -58,9 +59,6 @@ def main(config):
         print("predicting")
         s = time.time()
         results = model.predict(source=test_directory, imgsz=512)
-        e = time.time()
-        print(f"Prediction time {e-s} seconds")
-        # sacar metricas 
 
         #### resultados reduced y metrics reduced
         # convert predictions in pixels to geospatial bboxes
@@ -100,21 +98,30 @@ def main(config):
                     'confidence': bbox.confidence
                 })
 
+        e = time.time()
+        print(f"Prediction time {e-s} seconds")
+        inference_time = e - s
+        times.append(f"Inference time: {inference_time:.2f} seconds")
 
     bounding_boxes = pd.read_csv(output_file)
     # run non maximum suppresion
     s = time.time()
     bounding_boxes_t = detectionGeo.tiled_nms(bounding_boxes)
-    e = time.time()
     print("NMS time elapsed: ", e-s)
 
     # save boxes with non maximum suppresion
     save_path = output_file.replace(".csv", "_truncated.csv")
     bounding_boxes_t.to_csv(save_path, index=False)
+    e = time.time()
+    nms_time = e - s
+    times.append(f"NMS time: {nms_time:.2f} seconds")
+
 
     bounding_boxes_t = pd.read_csv(save_path)
     bounding_boxes_gt = pd.read_csv(ground_truth_file)
+    
     # computar metricas
+    s = time.time()
     gt_labels, pred_labels = detectionGeo.tiled_compute_labels(bounding_boxes_gt, bounding_boxes_t)
 
     # save a confusion matrix
@@ -147,6 +154,11 @@ def main(config):
     }
     with open(metrics_file, 'w') as f:
         json.dump(metrics, f, indent=4)
+        
+    e = time.time()
+    metrics_time = e - s
+    times.append(f"Metrics computation time: {metrics_time:.2f} seconds")
+    return times
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -158,8 +170,14 @@ if __name__ == '__main__':
         config = yaml.safe_load(f)
 
     s = time.time()
-    main(config)
+    times = main(config)
     e = time.time()
 
-    print( f"{e-s}/60 Minutes in inference and nms")
+    times.append(f"Total time: {e-s:.2f} seconds")
+
+    # Guardar los tiempos en times.txt
+    with open(config['output_folder'] + "/times.txt", "w") as f:
+        for line in times:
+            f.write(line + "\n")
+
 
