@@ -96,12 +96,12 @@ if __name__ == "__main__":
     rdd = sc.textFile("spark_scripts/data/input_images copy.txt")
     print("Doing inference...")
     s = time.time()
-    #detections = rdd.mapPartitions(predict_partition)
+    detections = rdd.mapPartitions(predict_partition)
     
     # reduce guardar todo en un archivo csv
     output_folder = "spark_scripts/data/predictions"
-    #df = detections.toDF(["tile", "id", "xmin", "ymin", "xmax", "ymax", "confidence"])
-    #df.coalesce(1).write.csv(output_folder, header=True, mode="overwrite")
+    df = detections.toDF(["tile", "id", "xmin", "ymin", "xmax", "ymax", "confidence"])
+    df.coalesce(1).write.csv(output_folder, header=True, mode="overwrite")
 
     e = time.time()
     inference_time = e - s
@@ -111,10 +111,10 @@ if __name__ == "__main__":
     print("Computing NMS...")
 
     s = time.time()
-    #bounding_boxes_t = detectionGeo.tiled_nms(df.toPandas())
+    bounding_boxes_t = detectionGeo.tiled_nms(df.toPandas())
     print("NMS time elapsed: ", e-s)
     save_path = output_folder + "/bounding_boxes_truncated.csv"
-    #bounding_boxes_t.to_csv(save_path, index=False)
+    bounding_boxes_t.to_csv(save_path, index=False)
 
     e = time.time()
     nms_time = e - s
