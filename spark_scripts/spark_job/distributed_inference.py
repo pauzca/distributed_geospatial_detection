@@ -11,6 +11,7 @@ import pandas as pd
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 import matplotlib.pyplot as plt
 import json
+from collections import defaultdict
 
 os.environ["YOLO_CONFIG_DIR"] = "/tmp"
 
@@ -34,6 +35,7 @@ def predict_partition(image_paths):
         if preds[0].boxes.data.nelement() == 0:
             continue
 
+        # convertir a geospacial
         for _, b in preds[0].to_df().iterrows():
             box = Box(
                 b["class"],
@@ -61,8 +63,8 @@ def compute_labels_per_tile(tile_data):
     gt = tile_data["gt"]
     preds = tile_data["preds"]
     
-    gt_labels, pred_labels = detectionGeo.compute_labels_fast(gt, preds, iou_threshold=0.5, conf_threshold=0.5)
-    return (gt_labels, pred_labels)
+    gt_labels, pred_labels, confidences = detectionGeo.tiled_compute_labels(gt, preds)
+    return (gt_labels, pred_labels, confidences)
 
 def print_confusion_matrix(gt_labels, pred_labels, output_file):
     cm = confusion_matrix(gt_labels, pred_labels, labels=[1, 0])
@@ -83,6 +85,9 @@ def print_confusion_matrix(gt_labels, pred_labels, output_file):
 
 
 if __name__ == "__main__":
+    times = []  # Lista para almacenar los tiempos
+
+    start_time = time.time()
     spark = SparkSession.builder.appName("DistributedDetection").getOrCreate()
     sc = spark.sparkContext
 
@@ -91,25 +96,29 @@ if __name__ == "__main__":
     rdd = sc.textFile("spark_scripts/data/input_images copy.txt")
     print("Doing inference...")
     s = time.time()
-    detections = rdd.mapPartitions(predict_partition)
-    e = time.time()
-    print("Inference time elapsed: ", e-s)
+    #detections = rdd.mapPartitions(predict_partition)
     
     # reduce guardar todo en un archivo csv
     output_folder = "spark_scripts/data/predictions"
-    df = detections.toDF(["tile", "id", "xmin", "ymin", "xmax", "ymax", "confidence"])
-    df.coalesce(1).write.csv(output_folder, header=True, mode="overwrite")
+    #df = detections.toDF(["tile", "id", "xmin", "ymin", "xmax", "ymax", "confidence"])
+    #df.coalesce(1).write.csv(output_folder, header=True, mode="overwrite")
+
+    e = time.time()
+    inference_time = e - s
+    times.append(f"Inference time: {inference_time:.2f} seconds")
 
     ########### Reduce #1 computar NMS #########################
     print("Computing NMS...")
 
     s = time.time()
-    bounding_boxes_t = detectionGeo.tiled_nms(df.toPandas())
-    e = time.time()
+    #bounding_boxes_t = detectionGeo.tiled_nms(df.toPandas())
     print("NMS time elapsed: ", e-s)
     save_path = output_folder + "/bounding_boxes_truncated.csv"
-    bounding_boxes_t.to_csv(save_path, index=False)
+    #bounding_boxes_t.to_csv(save_path, index=False)
 
+    e = time.time()
+    nms_time = e - s
+    times.append(f"NMS time: {nms_time:.2f} seconds")
 
     ############## map #2 para computar metricas parciales #######################
     print("Computing metrics...")
@@ -132,31 +141,45 @@ if __name__ == "__main__":
     results = rdd2.map(compute_labels_per_tile).collect()
 
     ############# reduce, compute metrics #########################
-    final_GT_LABELS = []
-    final_PRED_LABELS = []
+    final_GT_LABELS = defaultdict(list)
+    final_PRED_LABELS = defaultdict(list)
+    final_CONFIDENCES = defaultdict(list)
 
-    for gt_labels, pred_labels in results:
-        final_GT_LABELS.extend(gt_labels)
-        final_PRED_LABELS.extend(pred_labels)
+    for gt_labels, pred_labels, confidences in results:
+        for iou in gt_labels:
+            final_GT_LABELS[iou].extend(gt_labels[iou])
+            final_PRED_LABELS[iou].extend(pred_labels[iou])
+            final_CONFIDENCES[iou].extend(confidences[iou])
+
+    _ ,_ ,  results_by_iou = detectionGeo.compute_metrics_iou(gt_labels, pred_labels, confidences)
+
 
     # print confusion matrix
     output_file = output_folder + "/confusion_matrix.png"
-    print_confusion_matrix(final_GT_LABELS, final_PRED_LABELS, output_file)
+    print_confusion_matrix(final_GT_LABELS[0.5], final_PRED_LABELS[0.5], output_file)
 
-    precision, recall, f1_score  = detectionGeo.compute_metrics(final_GT_LABELS, final_PRED_LABELS)
+    presicion, recall, f1 = detectionGeo.compute_metrics(final_GT_LABELS[0.5], final_PRED_LABELS[0.5])
     
-    # save metrics
-    metrics_file = output_folder + "/detection_metrics.json"
-    metrics = {
-        "precision": precision,
-        "recall": recall,
-        "f1_score": f1_score
-    }
+    results_by_iou["0.5precision"] = presicion
+    results_by_iou["0.5recall"] = recall
+    results_by_iou["0.5f1"] = f1
+    
+    metrics_file = output_folder +  "/detection_metrics.json"
     with open(metrics_file, 'w') as f:
-        json.dump(metrics, f, indent=4)
+        json.dump(results_by_iou, f, indent=4)
+
 
     e = time.time()
-    print("Metrics computation time elapsed: ", e-s)
+    metrics_time = e - s
+    times.append(f"Metrics computation time: {metrics_time:.2f} seconds")
+
+    end_time = time.time()
+    total_time = end_time - start_time
+    times.append(f"Total execution time: {total_time:.2f} seconds")
+    # Guardar los tiempos en times.txt
+    with open(output_folder + "/times.txt", "w") as f:
+        for line in times:
+            f.write(line + "\n")
 
 
 

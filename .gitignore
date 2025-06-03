@@ -9,7 +9,7 @@ __pycache__/
 
 mosaicos/
 mosaicos/*
-boxes/predictions/*
+boxes/*
 
 datasets/
 spark_scripts/data/predictions.csv

@@ -42,6 +42,9 @@ def main(config):
 
     times = []  # Lista para almacenar los tiempos
 
+    # Create output folder if it doesn't exist
+    os.makedirs(config['output_folder'], exist_ok=True)
+
 
     # load the model 
     if model_name == "YOLO":
@@ -106,12 +109,11 @@ def main(config):
     bounding_boxes = pd.read_csv(output_file)
     # run non maximum suppresion
     s = time.time()
-    bounding_boxes_t = detectionGeo.tiled_nms(bounding_boxes)
-    print("NMS time elapsed: ", e-s)
+    #bounding_boxes_t = detectionGeo.tiled_nms(bounding_boxes)
 
     # save boxes with non maximum suppresion
     save_path = output_file.replace(".csv", "_truncated.csv")
-    bounding_boxes_t.to_csv(save_path, index=False)
+    #bounding_boxes_t.to_csv(save_path, index=False)
     e = time.time()
     nms_time = e - s
     times.append(f"NMS time: {nms_time:.2f} seconds")
@@ -122,11 +124,24 @@ def main(config):
     
     # computar metricas
     s = time.time()
-    gt_labels, pred_labels = detectionGeo.tiled_compute_labels(bounding_boxes_gt, bounding_boxes_t)
+    gt_labels, pred_labels, confidences = detectionGeo.tiled_compute_labels(bounding_boxes_gt, bounding_boxes_t)
 
+    _ ,_ ,  results_by_iou = detectionGeo.compute_metrics_iou(gt_labels, pred_labels, confidences)
+
+    presicion, recall, f1 = detectionGeo.compute_metrics(gt_labels[0.5], pred_labels[0.5],)
+    
+    results_by_iou["0.5precision"] = presicion
+    results_by_iou["0.5recall"] = recall
+    results_by_iou["0.5f1"] = f1
+
+    # save metrics
+    metrics_file = output_file.replace(".csv", "_metrics.json")
+    with open(metrics_file, 'w') as f:
+        json.dump(results_by_iou, f, indent=4)
+        
     # save a confusion matrix
     # Compute the confusion matrix
-    cm = confusion_matrix(gt_labels, pred_labels, labels=[1, 0])
+    cm = confusion_matrix(gt_labels[0.5], pred_labels[0.5], labels=[1, 0])
 
     # Optional: print raw matrix values
     print("Confusion Matrix:")
@@ -142,19 +157,6 @@ def main(config):
     plt.savefig(cf_file, bbox_inches="tight")
     plt.close()
 
-    presicion, recall, f1_score = detectionGeo.compute_metrics(gt_labels, pred_labels)
-    print(f"Precision: {presicion}, Recall: {recall}, F1 Score: {f1_score}")
-
-    # save metrics
-    metrics_file = output_file.replace(".csv", "_metrics.json")
-    metrics = {
-        "precision": presicion,
-        "recall": recall,
-        "f1_score": f1_score
-    }
-    with open(metrics_file, 'w') as f:
-        json.dump(metrics, f, indent=4)
-        
     e = time.time()
     metrics_time = e - s
     times.append(f"Metrics computation time: {metrics_time:.2f} seconds")

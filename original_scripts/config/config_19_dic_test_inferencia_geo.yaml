@@ -4,4 +4,4 @@
 weights: "pesos/yolo_best_fine_tune_800.pt"
 model: "YOLO"
 folder: "../datasets/19_dic_2024_bajito_mask_test"
-output_folder: "../boxes/predictions"
+output_folder: "../boxes/predictions2"

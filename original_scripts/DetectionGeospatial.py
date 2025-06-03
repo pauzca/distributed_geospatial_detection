@@ -3,6 +3,8 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 import math
+from sklearn.metrics import precision_score, recall_score
+from sklearn.metrics import auc
 
 class DetectionGeospatial:
 
@@ -210,16 +212,16 @@ class DetectionGeospatial:
         return bounding_boxes
 
 
-    def compute_labels_fast(self, gt_df, pred_df, iou_threshold=0.5, conf_threshold=0.0):
-        filtered_preds = pred_df[pred_df['confidence'] >= conf_threshold]
-        predictions = filtered_preds.sort_values(by='confidence', ascending=False)
+    def compute_labels_fast(self, gt_df, pred_df, iou_threshold=0.5):
+        predictions = pred_df.sort_values(by='confidence', ascending=False)
 
+        confidences = predictions['confidence'].values.tolist()
         gt_labels = []
         pred_labels = []
 
         matched_gt = set()
         
-        for i, pred in pred_df.iterrows():
+        for i, pred in predictions.iterrows():
             match_found = False
             for j, gt in gt_df.iterrows():
                 if j in matched_gt:
@@ -237,10 +239,11 @@ class DetectionGeospatial:
 
         # Add FN for each unmatched ground truth
         num_fn = len(gt_df) - len(matched_gt)
+        confidences.extend([0] * num_fn)  # No confidence for FN
         pred_labels.extend([0] * num_fn)  # No prediction made
         gt_labels.extend([1] * num_fn)    # Ground truth object exists
 
-        return gt_labels, pred_labels
+        return gt_labels, pred_labels, confidences
 
     
 
@@ -266,12 +269,16 @@ class DetectionGeospatial:
         print("Number of tiles for metric division: ", num_tiles_x * num_tiles_y)
 
         # Create a list of thresholds
-        thresholds = np.linspace(0.0, 1, 50)
-        ious = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+        ious = [0.5, 0.55,  0.6, 0.65, 0.7, 0.75, 0.8,0.85,  0.9, 0.95]
+
 
 
         GT_LABELS = []
         PRED_LABELS = []
+        GT_LABELS = {i: [] for i in ious}
+        PRED_LABELS = {i: [] for i in ious}
+        CONFIDENCES = {i: [] for i in ious}
+
 
         gt_index_check = []
         pred_index_check = []
@@ -331,11 +338,68 @@ class DetectionGeospatial:
                 pred_in_area = preds.iloc[index_pred_in_area]
 
                 print("computing labels")
-                gt_labels, pred_labels = self.compute_labels_fast(gt_in_area, pred_in_area, iou_threshold = 0.5, conf_threshold=0.5)
-                GT_LABELS.extend(gt_labels)
-                PRED_LABELS.extend(pred_labels)
+                for IoU in ious:
+                    gt_labels, pred_labels, confidences = self.compute_labels_fast(gt_in_area, pred_in_area, iou_threshold = IoU)
+                    GT_LABELS[IoU].extend(gt_labels)
+                    PRED_LABELS[IoU].extend(pred_labels)
+                    CONFIDENCES[IoU].extend(confidences)
+                        
+                #gt_labels, pred_labels = self.compute_labels_fast(gt_in_area, pred_in_area, iou_threshold = 0.5, conf_threshold=0.5)
+                #GT_LABELS.extend(gt_labels)
+                #PRED_LABELS.extend(pred_labels)
 
-        return GT_LABELS, PRED_LABELS
+        return GT_LABELS, PRED_LABELS, CONFIDENCES
+    
+
+    def compute_metrics_iou(self, GT_LABELS, PRED_LABELS, CONFIDENCES):
+        thresholds = [round(x * 0.05, 2) for x in range(21)]  # 0.0, 0.05, ..., 1.0
+        ious = [0.5, 0.55,  0.6, 0.65, 0.7, 0.75, 0.8,0.85,  0.9, 0.95]
+        results_by_iou = {}
+
+        for IoU in ious:
+            precision_list = []
+            recall_list = []
+            
+            gt_labels = GT_LABELS[IoU]
+            pred_labels = PRED_LABELS[IoU]
+            confidence = CONFIDENCES[IoU]
+
+            for thresh in thresholds:
+                confidence_mask = np.array(confidence) >= thresh
+                gt_labels_thresh = np.array(gt_labels)[confidence_mask]
+                pred_labels_thresh = np.array(pred_labels)[confidence_mask]
+
+                if len(pred_labels_thresh) == 0:
+                    precision = 1.0
+                    recall = 0.0
+                else:
+                    precision = precision_score(gt_labels_thresh, pred_labels_thresh, zero_division=1)
+                    recall = recall_score(gt_labels_thresh, pred_labels_thresh, zero_division=1)
+
+                precision_list.append(precision)
+                recall_list.append(recall)
+
+            # Compute AP
+            recall_array = np.array(recall_list)
+            precision_array = np.array(precision_list)
+
+            sorted_indices = np.argsort(recall_array)
+            recall_sorted = recall_array[sorted_indices]
+            precision_sorted = precision_array[sorted_indices]
+
+            average_precision = auc(recall_sorted, precision_sorted)
+
+            results_by_iou[IoU] = {
+                "AP": average_precision,
+            }
+
+            print(f"IoU {IoU} | AP = {average_precision:.4f} ")
+
+        # Compute AP@[.5:.95]
+        results_by_iou["AP@[.5:.95]"] = np.mean([v["AP"] for k, v in results_by_iou.items() if isinstance(k, float)])
+
+        return GT_LABELS, PRED_LABELS, results_by_iou
+    
     
 
     def compute_metrics(self, gt_labels, pred_labels):
