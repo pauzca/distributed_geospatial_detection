@@ -29,4 +29,6 @@ typing_extensions==4.12.2
 tzdata==2025.2
 ultralytics==8.3.144
 ultralytics-thop==2.0.14
+scikit-learn==1.6.1
 urllib3==1.26.13
+
