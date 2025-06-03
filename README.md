@@ -1,5 +1,5 @@
 # 🛰️ Proyecto de Detección Geoespacial de Frailejones  
-**Inferencia distribuida con PySpark + YOLOv11 + Spark YARN**
+**Inferencia distribuida con PySpark + YOLOv11 + Spark**
 
 Este proyecto permite detectar frailejones en imágenes satelitales (mosaicos `.tif`), divididas en tiles, usando modelos de visión por computador de forma distribuida usando PySpark, tanto localmente como en un clúster Hadoop.
 
@@ -9,7 +9,7 @@ Este proyecto permite detectar frailejones en imágenes satelitales (mosaicos `.
 ```
 ADGE_GH_FINAL/
 ├── distributed_geospatial_detection/ 
-│   └── original_scripts # Código base original
+│   └── original_scripts # Código base original y estudio del dataset
 │   └── datasets/ # tiles del mosaico
 │      └── 19_dic_2024_bajito_mask_test/
 │      ├── dataset/images/test/ # Tiles PNG (512x512)
@@ -19,18 +19,19 @@ ADGE_GH_FINAL/
 │       │ ├── input_images.txt # Lista que corre dentro del hadoop de la u
 │       │ ├── input_images copy.txt # Lista de tiles a procesar *fuera* del hadoop de la u
 │       │ └── generate_input_images_txt.py # Script que genera input_images.txt
+│       │ └── tile_metadata.json #metadatos
 │       ├── models/
-│       │ └── yolo_best_fine_tune_800.pt # Pesos del modelo YOLOv5
+│       │ └── yolo_best_fine_tune_800.pt # Pesos del modelo YOLOv11
 │       ├── spark_job/
 │       │ ├── distributed_inference.py # Script principal de inferencia
 │       │ └── utils.py # Funciones auxiliares
+│       │ └── Box.py # clase para las cajas
+│       │ └── DetectionGeospatial.py # Calculo de métricas y NMS
 │       ├── run_local.sh # Ejecución local
 │       └── run_yarn.sh # Ejecución en Hadoop YARN
 │    └── requirements.txt # Requisitos Python (excepto GDAL)
 |    └── README.md
-├── mosaicos
-├── env/ # Entorno virtual con dependencias instaladas
-├── env.tar.gz # Entorno comprimido para usar con YARN
+├── mosaicos # Dataset, se descarga aparte
 ```
 
 ---
